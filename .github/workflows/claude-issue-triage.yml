@@ -37,7 +37,7 @@ jobs:
                Si una etiqueta no existe en el repo, créala con `gh label create`. Aplícalas con `gh issue edit ${{ github.event.issue.number }} --add-label ...`.
                Si el issue fue editado y etiquetas de triage previas ya no aplican, quítalas con `--remove-label`.
 
-            3. Publica un diagnóstico general en español como comentario. Debe comenzar con la línea oculta `<!-- claude-triage -->` y contener estas secciones:
+            3. Publica un diagnóstico general en español como comentario. El comentario debe estar en formato Markdown que GitHub pueda interpretar (GitHub Flavored Markdown: encabezados, listas, negritas y bloques de código con triple acento grave). Debe comenzar con la línea oculta `<!-- claude-triage -->` y contener estas secciones:
                - **Resumen**: qué se reporta o solicita, en 1-2 frases.
                - **Diagnóstico**: causa probable o área afectada, citando archivos y funciones concretas (por ejemplo `game.js` → `tryRotate`, `loop`).
                - **Pasos sugeridos**: lista corta de cambios para implementar la solución.
