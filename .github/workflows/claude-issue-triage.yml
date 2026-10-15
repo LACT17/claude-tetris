@@ -1,0 +1,49 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Evita bucles: ignora eventos generados por bots
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Analyze issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Eres un asistente de triage de issues para el repositorio ${{ github.repository }} (un Tetris en JavaScript vanilla; lee CLAUDE.md para la arquitectura).
+
+            Analiza el issue #${{ github.event.issue.number }} y haz lo siguiente:
+
+            1. Lee el issue con `gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }}` y revisa el código relevante del repositorio (game.js, index.html, style.css).
+
+            2. Asigna etiquetas, elegidas SOLO de este conjunto:
+               - Tipo (exactamente una): `bug`, `enhancement`, `question`, `documentation`
+               - Área (una o más): `gameplay`, `ui`, `controls`, `infra`
+               - Prioridad (opcional, una): `priority: low`, `priority: medium`, `priority: high`
+               Si una etiqueta no existe en el repo, créala con `gh label create`. Aplícalas con `gh issue edit ${{ github.event.issue.number }} --add-label ...`.
+               Si el issue fue editado y etiquetas de triage previas ya no aplican, quítalas con `--remove-label`.
+
+            3. Publica un diagnóstico general en español como comentario. Debe comenzar con la línea oculta `<!-- claude-triage -->` y contener estas secciones:
+               - **Resumen**: qué se reporta o solicita, en 1-2 frases.
+               - **Diagnóstico**: causa probable o área afectada, citando archivos y funciones concretas (por ejemplo `game.js` → `tryRotate`, `loop`).
+               - **Pasos sugeridos**: lista corta de cambios para implementar la solución.
+               - **Riesgos / dudas**: casos borde o información faltante.
+               Antes de comentar, busca con `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments` si ya existe un comentario con `<!-- claude-triage -->`; si existe, actualízalo (PATCH a `repos/${{ github.repository }}/issues/comments/{id}`) en lugar de crear uno nuevo.
+
+            No modifiques archivos del repositorio; solo etiqueta y comenta.
+          claude_args: |
+            --allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*),Bash(gh api:*),Read,Grep,Glob"

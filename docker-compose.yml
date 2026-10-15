@@ -1,0 +1,18 @@
+services:
+  tetris:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CONTAINER_PORT: ${CONTAINER_PORT:-3000}
+    container_name: claude-tetris
+    # Nunca arranca solo: ni con Docker Desktop ni al reiniciar el PC.
+    # Solo corre cuando ejecutas `docker compose up`.
+    restart: "no"
+    ports:
+      # host:contenedor. El puerto del host es poco común para no chocar
+      # con otros proyectos (cambiable con ASTEROIDS_PORT).
+      - "${TETRIS_PORT:-8767}:${CONTAINER_PORT:-3000}"
+    volumes:
+      # Bind mount: los cambios en el código se ven en el contenedor al instante
+      - .:/workspace:cached

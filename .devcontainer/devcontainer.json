@@ -1,0 +1,16 @@
+{
+  "name": "Tetris",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "tetris",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  // Abrir el dev container NO arranca el servidor: el contenedor queda en
+  // reposo y tú lo inicias cuando quieras con `npx serve . -l 3000`.
+  "overrideCommand": true,
+  // El puerto 8765 del host ya se publica desde docker-compose.yml (8767 -> 3000).
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  }
+}
