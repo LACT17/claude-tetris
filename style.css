@@ -120,7 +120,7 @@ body {
   width: 160px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   padding-top: 4px;
 }
 
@@ -143,6 +143,24 @@ body {
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 1px;
+}
+
+#mode-select {
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.objective {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--accent);
+  white-space: pre-line;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 #next-canvas {

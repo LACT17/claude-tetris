@@ -14,7 +14,9 @@ const COLORS = [
   '#89cff0', // J - baby blue
   '#ffb74d', // L - orange
   '#b0bec5', // Tuerca - gris acero
+  '#607d8b', // Basura / bloques fijos - gris pizarra
 ];
+const GARBAGE = 9;
 
 const PIECES = [
   null,
@@ -40,11 +42,24 @@ const PERFECT_CLEAR_SCORES = [0, 800, 1200, 1800, 2000]; // bonus plano × nivel
 const B2B_MULT = 1.5;      // Tetris / T-spin consecutivos
 const COMBO_MAX_MULT = 8;  // tope del multiplicador de combo (x2, x3, ... x8)
 
+// --- Modo desafío ---
+// Cada modo combina un objetivo (goalLines / surviveTime / timeLimit, en segundos)
+// con modificadores (garbageEvery, preRows, invisible, reverseFromLevel).
+const MODES = {
+  classic:   { name: 'Clásico', desc: 'Sin objetivo' },
+  sprint:    { name: 'Sprint', desc: 'Limpia 40 líneas en 2:00', goalLines: 40, timeLimit: 120 },
+  garbage:   { name: 'Basura ascendente', desc: 'Sobrevive 90 s', surviveTime: 90, garbageEvery: 10 },
+  fixed:     { name: 'Bloques fijos', desc: 'Limpia 15 líneas', goalLines: 15, preRows: 5, preDensity: 0.45 },
+  invisible: { name: 'Invisibles', desc: 'Limpia 10 líneas', goalLines: 10, invisible: true },
+  reverse:   { name: 'Rotación inversa', desc: 'Limpia 30 líneas (inversa desde nivel 3)', goalLines: 30, reverseFromLevel: 3 },
+};
+
 // Puntos de enganche para el motor: define window.GameFX con cualquiera de
 // estos métodos para disparar efectos visuales/sonido propios. Cada uno recibe
 // un objeto con los datos del evento. Ejemplo:
 //   window.GameFX = { combo: ({ combo, multiplier }) => sfx.play('combo' + combo) };
-// Eventos: lineClear, combo, tSpin, backToBack, perfectClear, gameOver.
+// Eventos: lineClear, combo, tSpin, backToBack, perfectClear, garbage, gameOver
+// (gameOver recibe { score, won } — won es true al superar un reto).
 function emitFX(name, data) {
   const hook = window.GameFX && window.GameFX[name];
   if (typeof hook === 'function') hook(data);
@@ -63,11 +78,14 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeBtn = document.getElementById('theme-toggle');
 const fxBanner = document.getElementById('fx-banner');
+const modeSelect = document.getElementById('mode-select');
+const objectiveEl = document.getElementById('objective');
 
 let gridColor;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let combo, b2b, lastMoveWasRotation;
+let mode, elapsed, garbageAccum; // elapsed y garbageAccum en ms
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -101,8 +119,14 @@ function rotateCW(shape) {
   return result;
 }
 
+function reverseRotation() {
+  return !!mode.reverseFromLevel && level >= mode.reverseFromLevel;
+}
+
 function tryRotate() {
-  const rotated = rotateCW(current.shape);
+  const cw = rotateCW(current.shape);
+  // anti-horario = 3 giros horarios
+  const rotated = reverseRotation() ? rotateCW(rotateCW(cw)) : cw;
   const kicks = [0, -1, 1, -2, 2];
   for (const kick of kicks) {
     if (!collide(rotated, current.x + kick, current.y)) {
@@ -235,7 +259,57 @@ function lockPiece() {
   const tspin = isTSpin();
   merge();
   clearLines(tspin);
+  if (checkObjective()) return;
   spawn();
+}
+
+// --- Mecánicas de desafío ---
+function fillPreBlocks() {
+  for (let r = ROWS - mode.preRows; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++)
+      board[r][c] = Math.random() < mode.preDensity ? GARBAGE : 0;
+    board[r][Math.floor(Math.random() * COLS)] = 0; // nunca una fila completa
+  }
+}
+
+function addGarbageRow() {
+  const topRowFilled = board[0].some(v => v !== 0);
+  board.shift();
+  const row = new Array(COLS).fill(GARBAGE);
+  row[Math.floor(Math.random() * COLS)] = 0;
+  board.push(row);
+  emitFX('garbage', {});
+  if (topRowFilled) { endGame('GAME OVER'); return; }
+  // la pieza activa sube si la fila nueva la invade
+  if (collide(current.shape, current.x, current.y)) {
+    current.y--;
+    if (collide(current.shape, current.x, current.y)) endGame('GAME OVER');
+  }
+}
+
+// Devuelve true si el reto terminó (victoria o derrota)
+function checkObjective() {
+  if (gameOver) return true;
+  if (mode.goalLines && lines >= mode.goalLines) { endGame('¡RETO SUPERADO!', true); return true; }
+  if (mode.timeLimit && elapsed >= mode.timeLimit * 1000) { endGame('TIEMPO AGOTADO'); return true; }
+  if (mode.surviveTime && elapsed >= mode.surviveTime * 1000) { endGame('¡SOBREVIVISTE!', true); return true; }
+  return false;
+}
+
+function formatTime(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function updateObjective() {
+  const parts = [mode.desc];
+  if (mode.goalLines) parts.push(`Líneas ${Math.min(lines, mode.goalLines)}/${mode.goalLines}`);
+  if (mode.timeLimit) parts.push(`Tiempo ${formatTime(mode.timeLimit * 1000 - elapsed)}`);
+  if (mode.surviveTime) parts.push(`Tiempo ${formatTime(mode.surviveTime * 1000 - elapsed)}`);
+  if (mode.garbageEvery) parts.push(`Basura en ${formatTime(mode.garbageEvery * 1000 - garbageAccum)}`);
+  if (reverseRotation()) parts.push('¡ROTACIÓN INVERSA!');
+  const text = parts.join('\n');
+  if (objectiveEl.textContent !== text) objectiveEl.textContent = text;
 }
 
 function spawn() {
@@ -287,10 +361,11 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
-  // board
+  // board (en modo "invisibles" las piezas desaparecen al asentarse; la basura no)
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
-      drawBlock(ctx, c, r, board[r][c], BLOCK);
+      if (!mode.invisible || board[r][c] === GARBAGE)
+        drawBlock(ctx, c, r, board[r][c], BLOCK);
 
   // ghost
   const gy = ghostY();
@@ -316,13 +391,15 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
-function endGame() {
+function endGame(title = 'GAME OVER', won = false) {
+  if (gameOver) return; // el primer final (victoria o derrota) es el que cuenta
   gameOver = true;
   cancelAnimationFrame(animId);
-  emitFX('gameOver', { score });
-  overlayTitle.textContent = 'GAME OVER';
+  emitFX('gameOver', { score, won });
+  overlayTitle.textContent = title;
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  if (current) draw();
 }
 
 function togglePause() {
@@ -342,6 +419,21 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
+
+  // temporizadores del reto (con tope para que una pestaña oculta no los dispare)
+  const step = Math.min(dt, 250);
+  elapsed += step;
+  if (mode.garbageEvery) {
+    garbageAccum += step;
+    if (garbageAccum >= mode.garbageEvery * 1000) {
+      garbageAccum = 0;
+      addGarbageRow();
+    }
+  }
+  checkObjective();
+  updateObjective();
+  if (gameOver) { draw(); return; }
+
   dropAccum += dt;
   if (dropAccum >= dropInterval) {
     dropAccum = 0;
@@ -366,6 +458,10 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  mode = MODES[modeSelect.value] || MODES.classic;
+  elapsed = 0;
+  garbageAccum = 0;
+  if (mode.preRows) fillPreBlocks();
   combo = -1;
   b2b = false;
   lastMoveWasRotation = false;
@@ -376,6 +472,7 @@ function init() {
   next = randomPiece();
   spawn();
   updateHUD();
+  updateObjective();
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -407,6 +504,11 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+modeSelect.addEventListener('change', () => {
+  init();
+  modeSelect.blur(); // evita que las flechas cambien de modo a mitad de partida
+});
 
 function applyTheme(theme) {
   const light = theme === 'light';
