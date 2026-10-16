@@ -16,7 +16,7 @@ Vanilla JavaScript Tetris (HTML5 Canvas + CSS). No `package.json`, no build, no 
 Three files, all logic in `game.js` (~300 lines, global scope, no modules):
 
 - `index.html` — `<canvas id="board">` (300×600), a `next-canvas` preview, HUD elements (`score`, `lines`, `level`), and an `overlay` for pause/game over.
-- `game.js` — board is a `ROWS × COLS` matrix of `0` or a color index (1–7). Pieces are square matrices rotated by `rotateCW` (transpose + reverse); `tryRotate` applies wall kicks of ±1/±2 columns. Loop is `requestAnimationFrame`-based (`loop`), accumulating `dropAccum` against `dropInterval`. Drop speed is `max(100, 1000 − (level−1)·90)` ms; level rises every 10 lines; scoring uses `LINE_SCORES × level`, +1/cell soft drop, +2/cell hard drop.
+- `game.js` — board is a `ROWS × COLS` matrix of `0` or a color index (1–8). Pieces are square matrices (index 8 is the 3×3 "tuerca" with an empty center, spawned with probability `NUT_CHANCE`) rotated by `rotateCW` (transpose + reverse); `tryRotate` applies wall kicks of ±1/±2 columns. Loop is `requestAnimationFrame`-based (`loop`), accumulating `dropAccum` against `dropInterval`. Drop speed is `max(100, 1000 − (level−1)·90)` ms; level rises every 10 lines; scoring uses `LINE_SCORES × level`, +1/cell soft drop, +2/cell hard drop.
 - `style.css` — dark/retro styling.
 
 Constraint: `COLS × BLOCK` and `ROWS × BLOCK` must match the `width`/`height` attributes of `<canvas id="board">` in `index.html` — change both together.
