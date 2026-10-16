@@ -85,6 +85,36 @@ body {
   box-shadow: 0 0 40px var(--shadow);
 }
 
+/* ---- Texto flotante de combos / T-spin / B2B (sobre el tablero) ---- */
+.fx-banner {
+  position: absolute;
+  top: 35%;
+  left: 0;
+  width: 300px; /* = ancho del canvas #board */
+  text-align: center;
+  white-space: pre-line;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  line-height: 1.3;
+  color: var(--accent);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.fx-banner.show {
+  animation: fx-pop 1.4s ease-out forwards;
+}
+
+@keyframes fx-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  15%  { opacity: 1; transform: scale(1.15); }
+  30%  { transform: scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-24px); }
+}
+
 /* ---- Panel lateral ---- */
 .panel {
   width: 160px;

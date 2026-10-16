@@ -33,6 +33,23 @@ const NUT_CHANCE = 1 / 12; // probabilidad de que la siguiente pieza sea la tuer
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// --- Combos, T-spin, B2B y Perfect Clear ---
+const T_TYPE = 3;
+const TSPIN_SCORES = [400, 800, 1200, 1600];        // por líneas limpiadas (0-3) × nivel
+const PERFECT_CLEAR_SCORES = [0, 800, 1200, 1800, 2000]; // bonus plano × nivel
+const B2B_MULT = 1.5;      // Tetris / T-spin consecutivos
+const COMBO_MAX_MULT = 8;  // tope del multiplicador de combo (x2, x3, ... x8)
+
+// Puntos de enganche para el motor: define window.GameFX con cualquiera de
+// estos métodos para disparar efectos visuales/sonido propios. Cada uno recibe
+// un objeto con los datos del evento. Ejemplo:
+//   window.GameFX = { combo: ({ combo, multiplier }) => sfx.play('combo' + combo) };
+// Eventos: lineClear, combo, tSpin, backToBack, perfectClear, gameOver.
+function emitFX(name, data) {
+  const hook = window.GameFX && window.GameFX[name];
+  if (typeof hook === 'function') hook(data);
+}
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -45,10 +62,12 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeBtn = document.getElementById('theme-toggle');
+const fxBanner = document.getElementById('fx-banner');
 
 let gridColor;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let combo, b2b, lastMoveWasRotation;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -89,6 +108,7 @@ function tryRotate() {
     if (!collide(rotated, current.x + kick, current.y)) {
       current.shape = rotated;
       current.x += kick;
+      lastMoveWasRotation = true;
       return;
     }
   }
@@ -101,7 +121,21 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
-function clearLines() {
+// T-spin (regla de 3 esquinas): pieza T, último movimiento fue una rotación y
+// al menos 3 de las 4 esquinas alrededor del centro están ocupadas (o son pared).
+// Debe llamarse ANTES de merge().
+function isTSpin() {
+  if (current.type !== T_TYPE || !lastMoveWasRotation) return false;
+  const cx = current.x + 1, cy = current.y + 1; // el centro de la T 3×3 no cambia al rotar
+  let corners = 0;
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const nx = cx + dx, ny = cy + dy;
+    if (nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && board[ny][nx])) corners++;
+  }
+  return corners >= 3;
+}
+
+function clearLines(tspin) {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board[r].every(v => v !== 0)) {
@@ -111,13 +145,66 @@ function clearLines() {
       r++;
     }
   }
-  if (cleared) {
-    lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    updateHUD();
+
+  if (!cleared) {
+    combo = -1; // sin limpieza se rompe el combo (B2B se conserva)
+    if (tspin) {
+      score += TSPIN_SCORES[0] * level;
+      emitFX('tSpin', { lines: 0 });
+      showBanner(['T-SPIN']);
+      updateHUD();
+    }
+    return;
   }
+
+  const labels = [];
+  const difficult = tspin || cleared === 4;
+  let gained = (tspin ? TSPIN_SCORES[cleared] : LINE_SCORES[cleared]) * level;
+
+  if (tspin) {
+    labels.push(cleared === 1 ? 'T-SPIN SINGLE' : cleared === 2 ? 'T-SPIN DOUBLE' : 'T-SPIN TRIPLE');
+    emitFX('tSpin', { lines: cleared });
+  } else if (cleared === 4) {
+    labels.push('TETRIS');
+  }
+
+  if (difficult && b2b) {
+    gained = Math.floor(gained * B2B_MULT);
+    labels.push('BACK-TO-BACK');
+    emitFX('backToBack', { lines: cleared });
+  }
+  b2b = difficult;
+
+  combo++;
+  const multiplier = Math.min(combo + 1, COMBO_MAX_MULT);
+  gained *= multiplier;
+  if (combo >= 1) {
+    labels.push(`COMBO x${multiplier}`);
+    emitFX('combo', { combo, multiplier });
+  }
+
+  if (board.every(row => row.every(v => v === 0))) {
+    gained += (PERFECT_CLEAR_SCORES[cleared] || 0) * level;
+    labels.push('PERFECT CLEAR');
+    emitFX('perfectClear', { lines: cleared });
+  }
+
+  emitFX('lineClear', { lines: cleared, tspin, gained, combo, b2b });
+  score += gained;
+  lines += cleared;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  showBanner(labels);
+  updateHUD();
+}
+
+// Efecto visual: texto flotante sobre el tablero (vacío = no muestra nada)
+function showBanner(labels) {
+  if (!fxBanner || !labels.length) return;
+  fxBanner.textContent = labels.join('\n');
+  fxBanner.classList.remove('show');
+  void fxBanner.offsetWidth; // reinicia la animación CSS
+  fxBanner.classList.add('show');
 }
 
 function ghostY() {
@@ -136,6 +223,7 @@ function hardDrop() {
 function softDrop() {
   if (!collide(current.shape, current.x, current.y + 1)) {
     current.y++;
+    lastMoveWasRotation = false;
     score += 1;
     updateHUD();
   } else {
@@ -144,12 +232,14 @@ function softDrop() {
 }
 
 function lockPiece() {
+  const tspin = isTSpin();
   merge();
-  clearLines();
+  clearLines(tspin);
   spawn();
 }
 
 function spawn() {
+  lastMoveWasRotation = false;
   current = next;
   next = randomPiece();
   if (collide(current.shape, current.x, current.y)) {
@@ -229,6 +319,7 @@ function drawNext() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  emitFX('gameOver', { score });
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -256,6 +347,7 @@ function loop(ts) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
+      lastMoveWasRotation = false;
     } else {
       lockPiece();
     }
@@ -274,6 +366,10 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  combo = -1;
+  b2b = false;
+  lastMoveWasRotation = false;
+  if (fxBanner) fxBanner.classList.remove('show');
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
@@ -290,10 +386,10 @@ document.addEventListener('keydown', e => {
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) current.x--;
+      if (!collide(current.shape, current.x - 1, current.y)) { current.x--; lastMoveWasRotation = false; }
       break;
     case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) current.x++;
+      if (!collide(current.shape, current.x + 1, current.y)) { current.x++; lastMoveWasRotation = false; }
       break;
     case 'ArrowDown':
       softDrop();
