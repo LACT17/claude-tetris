@@ -54,11 +54,27 @@ const MODES = {
   reverse:   { name: 'Rotación inversa', desc: 'Limpia 30 líneas (inversa desde nivel 3)', goalLines: 30, reverseFromLevel: 3 },
 };
 
+// --- Habilidades con energía ---
+// La barra se llena al limpiar líneas; cada habilidad gasta su coste (teclas 1-5).
+const ENERGY_MAX = 100;
+const ENERGY_PER_CLEAR = [0, 10, 25, 40, 60]; // por líneas limpiadas de una vez
+const SLOW_MS = 10000;
+const SLOW_FACTOR = 3;   // la gravedad es 3× más lenta mientras dura
+const PREVIEW_COUNT = 5;
+const ABILITIES = {
+  preview: { label: 'Ver 5 piezas', cost: 30 },
+  swap:    { label: 'Cambiar pieza', cost: 25 },
+  slow:    { label: 'Tiempo lento', cost: 40 },
+  undo:    { label: 'Deshacer', cost: 35 },
+  hold:    { label: 'Reserva', cost: 20 },
+};
+
 // Puntos de enganche para el motor: define window.GameFX con cualquiera de
 // estos métodos para disparar efectos visuales/sonido propios. Cada uno recibe
 // un objeto con los datos del evento. Ejemplo:
 //   window.GameFX = { combo: ({ combo, multiplier }) => sfx.play('combo' + combo) };
-// Eventos: lineClear, combo, tSpin, backToBack, perfectClear, garbage, gameOver
+// Eventos: lineClear, combo, tSpin, backToBack, perfectClear, garbage, ability
+// ({ name }: preview|swap|slow|undo|hold), gameOver
 // (gameOver recibe { score, won } — won es true al superar un reto).
 function emitFX(name, data) {
   const hook = window.GameFX && window.GameFX[name];
@@ -80,21 +96,31 @@ const themeBtn = document.getElementById('theme-toggle');
 const fxBanner = document.getElementById('fx-banner');
 const modeSelect = document.getElementById('mode-select');
 const objectiveEl = document.getElementById('objective');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const previewCanvas = document.getElementById('preview-canvas');
+const previewCtx = previewCanvas.getContext('2d');
+const energyFill = document.getElementById('energy-fill');
+const abilityEls = [...document.querySelectorAll('.ability')];
 
 let gridColor;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let combo, b2b, lastMoveWasRotation;
 let mode, elapsed, garbageAccum; // elapsed y garbageAccum en ms
+let queue, held, canHold, energy, previewLeft, slowLeft, undoSnap; // slowLeft en ms
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.random() < NUT_CHANCE ? NUT_TYPE : Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  return makePiece(Math.random() < NUT_CHANCE ? NUT_TYPE : Math.floor(Math.random() * 7) + 1);
 }
 
 function collide(shape, ox, oy) {
@@ -215,6 +241,7 @@ function clearLines(tspin) {
 
   emitFX('lineClear', { lines: cleared, tspin, gained, combo, b2b });
   score += gained;
+  energy = Math.min(ENERGY_MAX, energy + (ENERGY_PER_CLEAR[cleared] || 0));
   lines += cleared;
   level = Math.floor(lines / 10) + 1;
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
@@ -257,6 +284,7 @@ function softDrop() {
 
 function lockPiece() {
   const tspin = isTSpin();
+  saveUndo();
   merge();
   clearLines(tspin);
   if (checkObjective()) return;
@@ -278,6 +306,7 @@ function addGarbageRow() {
   const row = new Array(COLS).fill(GARBAGE);
   row[Math.floor(Math.random() * COLS)] = 0;
   board.push(row);
+  undoSnap = null; // el tablero cambió: el deshacer anterior ya no es válido
   emitFX('garbage', {});
   if (topRowFilled) { endGame('GAME OVER'); return; }
   // la pieza activa sube si la fila nueva la invade
@@ -312,20 +341,156 @@ function updateObjective() {
   if (objectiveEl.textContent !== text) objectiveEl.textContent = text;
 }
 
+// Saca la siguiente pieza de la cola (siempre de PREVIEW_COUNT elementos)
+function takeNext() {
+  const piece = queue.shift();
+  queue.push(randomPiece());
+  next = queue[0];
+  if (previewLeft > 0) previewLeft--;
+  return piece;
+}
+
 function spawn() {
   lastMoveWasRotation = false;
-  current = next;
-  next = randomPiece();
+  canHold = true;
+  current = takeNext();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
+  drawPreview();
+}
+
+// --- Habilidades ---
+function saveUndo() {
+  undoSnap = {
+    board: board.map(row => [...row]),
+    score, lines, level, dropInterval, combo, b2b, energy,
+    type: current.type,
+  };
+}
+
+function undoPlacement() {
+  if (!undoSnap) return false;
+  const s = undoSnap;
+  undoSnap = null; // un solo nivel de deshacer
+  board = s.board;
+  score = s.score; lines = s.lines; level = s.level;
+  dropInterval = s.dropInterval; combo = s.combo; b2b = s.b2b;
+  energy = Math.min(energy, s.energy); // evita ganar energía repitiendo la misma limpieza
+  queue.unshift(current); // la pieza que ya había salido vuelve al frente
+  queue.pop();
+  next = queue[0];
+  current = makePiece(s.type);
+  lastMoveWasRotation = false;
+  canHold = true;
+  dropAccum = 0;
+  drawNext();
+  drawPreview();
+  return true;
+}
+
+function swapPiece() {
+  // pieza aleatoria del "pool" de las 7 clásicas, distinta de la actual
+  const pool = [1, 2, 3, 4, 5, 6, 7].filter(t => t !== current.type);
+  const piece = makePiece(pool[Math.floor(Math.random() * pool.length)]);
+  for (const kick of [0, -1, 1, -2, 2]) {
+    const x = current.x + kick;
+    if (!collide(piece.shape, x, current.y)) {
+      current = Object.assign(piece, { x, y: current.y });
+      lastMoveWasRotation = false;
+      return true;
+    }
+  }
+  return false;
+}
+
+function holdPiece() {
+  if (!canHold) return false;
+  const stored = held;
+  held = current.type;
+  current = stored ? makePiece(stored) : takeNext();
+  canHold = false; // una vez por pieza
+  lastMoveWasRotation = false;
+  if (collide(current.shape, current.x, current.y)) endGame();
+  drawNext();
+  drawPreview();
+  drawHold();
+  return true;
+}
+
+function useAbility(name) {
+  if (paused || gameOver) return;
+  const ability = ABILITIES[name];
+  if (energy < ability.cost) {
+    showBanner(['SIN ENERGÍA']);
+    return;
+  }
+  energy -= ability.cost;
+  let ok = false;
+  switch (name) {
+    case 'preview':
+      if (previewLeft === 0) { previewLeft = PREVIEW_COUNT; drawPreview(); ok = true; }
+      break;
+    case 'swap': ok = swapPiece(); break;
+    case 'slow':
+      if (slowLeft === 0) { slowLeft = SLOW_MS; ok = true; }
+      break;
+    case 'undo': ok = undoPlacement(); break;
+    case 'hold': ok = holdPiece(); break;
+  }
+  if (!ok) { energy += ability.cost; return; } // no se cobra si no se pudo usar
+  emitFX('ability', { name });
+  showBanner([ability.label.toUpperCase()]);
+  updateHUD();
+  draw();
+}
+
+function updateAbilityUI() {
+  energyFill.style.width = `${(energy / ENERGY_MAX) * 100}%`;
+  for (const el of abilityEls) {
+    const name = el.dataset.ability;
+    const active = (name === 'slow' && slowLeft > 0) || (name === 'preview' && previewLeft > 0);
+    el.classList.toggle('ready', energy >= ABILITIES[name].cost);
+    el.classList.toggle('active', active);
+    const label = ABILITIES[name].label + (name === 'slow' && slowLeft > 0 ? ` ${Math.ceil(slowLeft / 1000)}s` : '');
+    const nameEl = el.querySelector('.ab-name');
+    if (nameEl.textContent !== label) nameEl.textContent = label;
+  }
+}
+
+// Dibuja varias piezas en fila, centradas por su caja mínima, en celdas de ancho cellW
+function drawPieces(context, cv, shapes, size, cellW) {
+  context.clearRect(0, 0, cv.width, cv.height);
+  shapes.forEach((shape, i) => {
+    let minR = 99, maxR = -1, minC = 99, maxC = -1;
+    shape.forEach((row, r) => row.forEach((v, c) => {
+      if (!v) return;
+      minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+      minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+    }));
+    const w = (maxC - minC + 1) * size, h = (maxR - minR + 1) * size;
+    context.save();
+    context.translate(i * cellW + (cellW - w) / 2 - minC * size, (cv.height - h) / 2 - minR * size);
+    shape.forEach((row, r) => row.forEach((v, c) => drawBlock(context, c, r, v, size)));
+    context.restore();
+  });
+}
+
+function drawHold() {
+  drawPieces(holdCtx, holdCanvas, held ? [PIECES[held]] : [], 24, holdCanvas.width);
+}
+
+function drawPreview() {
+  const shapes = previewLeft > 0 ? queue.slice(0, previewLeft).map(p => p.shape) : [];
+  drawPieces(previewCtx, previewCanvas, shapes, 7, previewCanvas.width / PREVIEW_COUNT);
 }
 
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  updateAbilityUI();
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -430,12 +595,14 @@ function loop(ts) {
       addGarbageRow();
     }
   }
+  if (slowLeft > 0) slowLeft = Math.max(0, slowLeft - step);
   checkObjective();
   updateObjective();
+  updateAbilityUI();
   if (gameOver) { draw(); return; }
 
   dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  if (dropAccum >= (slowLeft > 0 ? dropInterval * SLOW_FACTOR : dropInterval)) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -469,8 +636,16 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
-  next = randomPiece();
+  queue = Array.from({ length: PREVIEW_COUNT }, randomPiece);
+  next = queue[0];
+  held = null;
+  canHold = true;
+  energy = 0;
+  previewLeft = 0;
+  slowLeft = 0;
+  undoSnap = null;
   spawn();
+  drawHold();
   updateHUD();
   updateObjective();
   overlay.classList.add('hidden');
@@ -499,11 +674,18 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       hardDrop();
       break;
+    case 'Digit1': case 'Numpad1': useAbility('preview'); break;
+    case 'Digit2': case 'Numpad2': useAbility('swap'); break;
+    case 'Digit3': case 'Numpad3': useAbility('slow'); break;
+    case 'Digit4': case 'Numpad4': useAbility('undo'); break;
+    case 'Digit5': case 'Numpad5': case 'KeyC': useAbility('hold'); break;
   }
   updateHUD();
 });
 
 restartBtn.addEventListener('click', init);
+
+abilityEls.forEach(el => el.addEventListener('click', () => useAbility(el.dataset.ability)));
 
 modeSelect.addEventListener('change', () => {
   init();

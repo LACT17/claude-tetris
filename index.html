@@ -17,6 +17,30 @@
   </h1>
   <div class="wrapper">
     <div class="game-container">
+      <aside class="panel panel-left">
+        <div class="panel-section">
+          <span class="label">RESERVA</span>
+          <canvas id="hold-canvas" width="96" height="72"></canvas>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">ENERGÍA</span>
+          <div class="energy-bar"><div id="energy-fill" class="energy-fill"></div></div>
+          <ul class="abilities">
+            <li class="ability" data-ability="preview"><kbd>1</kbd><span class="ab-name">Ver 5 piezas</span><span class="ab-cost">30</span></li>
+            <li class="ability" data-ability="swap"><kbd>2</kbd><span class="ab-name">Cambiar pieza</span><span class="ab-cost">25</span></li>
+            <li class="ability" data-ability="slow"><kbd>3</kbd><span class="ab-name">Tiempo lento</span><span class="ab-cost">40</span></li>
+            <li class="ability" data-ability="undo"><kbd>4</kbd><span class="ab-name">Deshacer</span><span class="ab-cost">35</span></li>
+            <li class="ability" data-ability="hold"><kbd>5</kbd><span class="ab-name">Reserva</span><span class="ab-cost">20</span></li>
+          </ul>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">PRÓXIMAS 5</span>
+          <canvas id="preview-canvas" width="140" height="40"></canvas>
+        </div>
+      </aside>
+
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
@@ -58,6 +82,7 @@
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
             <li><kbd>P</kbd> pausa</li>
+            <li><kbd>1</kbd>–<kbd>5</kbd> / <kbd>C</kbd> habilidades</li>
           </ul>
         </div>
 
