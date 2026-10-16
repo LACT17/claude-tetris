@@ -256,6 +256,9 @@ function loop(ts) {
     }
   }
   draw();
+  // endGame() (vía lockPiece → spawn) cancela el frame, pero aquí se
+  // reprogramaría de nuevo y las piezas seguirían apareciendo.
+  if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
 
