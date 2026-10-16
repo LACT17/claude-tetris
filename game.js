@@ -66,7 +66,6 @@ const ABILITIES = {
   swap:    { label: 'Cambiar pieza', cost: 25 },
   slow:    { label: 'Tiempo lento', cost: 40 },
   undo:    { label: 'Deshacer', cost: 35 },
-  hold:    { label: 'Reserva', cost: 20 },
 };
 
 // Puntos de enganche para el motor: define window.GameFX con cualquiera de
@@ -359,6 +358,7 @@ function spawn() {
   }
   drawNext();
   drawPreview();
+  updateAbilityUI();
 }
 
 // --- Habilidades ---
@@ -419,6 +419,14 @@ function holdPiece() {
   return true;
 }
 
+// Reserva (hold): gratis, una vez por pieza (canHold se libera al asentarse la pieza)
+function doHold() {
+  if (paused || gameOver || !holdPiece()) return;
+  emitFX('hold', { held });
+  updateHUD();
+  draw();
+}
+
 function useAbility(name) {
   if (paused || gameOver) return;
   const ability = ABILITIES[name];
@@ -437,7 +445,6 @@ function useAbility(name) {
       if (slowLeft === 0) { slowLeft = SLOW_MS; ok = true; }
       break;
     case 'undo': ok = undoPlacement(); break;
-    case 'hold': ok = holdPiece(); break;
   }
   if (!ok) { energy += ability.cost; return; } // no se cobra si no se pudo usar
   emitFX('ability', { name });
@@ -447,6 +454,7 @@ function useAbility(name) {
 }
 
 function updateAbilityUI() {
+  holdCanvas.classList.toggle('locked', !canHold); // atenuada mientras la reserva está bloqueada
   energyFill.style.width = `${(energy / ENERGY_MAX) * 100}%`;
   for (const el of abilityEls) {
     const name = el.dataset.ability;
@@ -678,7 +686,11 @@ document.addEventListener('keydown', e => {
     case 'Digit2': case 'Numpad2': useAbility('swap'); break;
     case 'Digit3': case 'Numpad3': useAbility('slow'); break;
     case 'Digit4': case 'Numpad4': useAbility('undo'); break;
-    case 'Digit5': case 'Numpad5': case 'KeyC': useAbility('hold'); break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      if (!e.repeat) doHold();
+      break;
   }
   updateHUD();
 });

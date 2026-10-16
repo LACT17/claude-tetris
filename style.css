@@ -176,6 +176,14 @@ body {
   border-radius: 4px;
 }
 
+#hold-canvas {
+  transition: opacity 0.15s;
+}
+
+#hold-canvas.locked {
+  opacity: 0.35; /* reserva ya usada en esta pieza */
+}
+
 .energy-bar {
   height: 10px;
   border: 1px solid var(--border);
