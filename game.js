@@ -106,6 +106,7 @@ let gridColor;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let combo, b2b, lastMoveWasRotation;
+let maxCombo = 0; // mayor `combo` de la partida (para la tabla de records)
 let mode, elapsed, garbageAccum; // elapsed y garbageAccum en ms
 let queue, held, canHold, energy, previewLeft, slowLeft, undoSnap; // slowLeft en ms
 
@@ -225,6 +226,7 @@ function clearLines(tspin) {
   b2b = difficult;
 
   combo++;
+  maxCombo = Math.max(maxCombo, combo);
   const multiplier = Math.min(combo + 1, COMBO_MAX_MULT);
   gained *= multiplier;
   if (combo >= 1) {
@@ -572,6 +574,7 @@ function endGame(title = 'GAME OVER', won = false) {
   overlayTitle.textContent = title;
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  if (typeof onGameOverRecords === 'function') onGameOverRecords(); // records.js
   if (current) draw();
 }
 
@@ -638,6 +641,7 @@ function init() {
   garbageAccum = 0;
   if (mode.preRows) fillPreBlocks();
   combo = -1;
+  maxCombo = 0;
   b2b = false;
   lastMoveWasRotation = false;
   if (fxBanner) fxBanner.classList.remove('show');
