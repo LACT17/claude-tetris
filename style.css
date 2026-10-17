@@ -341,3 +341,24 @@ kbd {
 #restart-btn:hover {
   background: var(--accent-hover);
 }
+
+/* Menú de pausa (pause.js): solo visible con #overlay.pausa */
+.overlay:not(.pausa) .pause-extra { display: none; }
+.pause-extra { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.overlay.pausa #overlay-title { color: var(--accent); }
+.pause-extra button {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pause-extra button:hover { border-color: var(--accent); }
+#resume-btn { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+.pause-level { font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.pause-level select { background: var(--canvas-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px; }
+.pause-extra-list { list-style: none; font-size: 13px; text-align: left; display: flex; flex-direction: column; gap: 4px; }
+.pause-extra-list[hidden] { display: none; }
