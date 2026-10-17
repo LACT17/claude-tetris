@@ -95,6 +95,22 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="pause-menu" class="pause-extra">
+          <button id="resume-btn" type="button">Reanudar</button>
+          <label class="pause-level" for="start-level">Nivel inicial
+            <select id="start-level"></select>
+          </label>
+          <button id="controls-btn" type="button" aria-expanded="false">Ver controles</button>
+          <ul id="controls-list" class="pause-extra-list" hidden>
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> / <kbd>X</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+            <li><kbd>C</kbd> / <kbd>Shift</kbd> reserva</li>
+            <li><kbd>1</kbd>–<kbd>4</kbd> habilidades</li>
+          </ul>
+        </div>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
@@ -102,5 +118,6 @@
   </div>
 
   <script src="game.js"></script>
+  <script src="pause.js"></script>
 </body>
 </html>

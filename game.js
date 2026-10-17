@@ -104,6 +104,7 @@ const abilityEls = [...document.querySelectorAll('.ability')];
 
 let gridColor;
 
+let baseLines = 0;
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let combo, b2b, lastMoveWasRotation;
 let mode, elapsed, garbageAccum; // elapsed y garbageAccum en ms
@@ -318,7 +319,7 @@ function addGarbageRow() {
 // Devuelve true si el reto terminó (victoria o derrota)
 function checkObjective() {
   if (gameOver) return true;
-  if (mode.goalLines && lines >= mode.goalLines) { endGame('¡RETO SUPERADO!', true); return true; }
+  if (mode.goalLines && lines - baseLines >= mode.goalLines) { endGame('¡RETO SUPERADO!', true); return true; }
   if (mode.timeLimit && elapsed >= mode.timeLimit * 1000) { endGame('TIEMPO AGOTADO'); return true; }
   if (mode.surviveTime && elapsed >= mode.surviveTime * 1000) { endGame('¡SOBREVIVISTE!', true); return true; }
   return false;
@@ -331,7 +332,7 @@ function formatTime(ms) {
 
 function updateObjective() {
   const parts = [mode.desc];
-  if (mode.goalLines) parts.push(`Líneas ${Math.min(lines, mode.goalLines)}/${mode.goalLines}`);
+  if (mode.goalLines) parts.push(`Líneas ${Math.min(lines - baseLines, mode.goalLines)}/${mode.goalLines}`);
   if (mode.timeLimit) parts.push(`Tiempo ${formatTime(mode.timeLimit * 1000 - elapsed)}`);
   if (mode.surviveTime) parts.push(`Tiempo ${formatTime(mode.surviveTime * 1000 - elapsed)}`);
   if (mode.garbageEvery) parts.push(`Basura en ${formatTime(mode.garbageEvery * 1000 - garbageAccum)}`);
@@ -571,6 +572,7 @@ function endGame(title = 'GAME OVER', won = false) {
   emitFX('gameOver', { score, won });
   overlayTitle.textContent = title;
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlay.classList.remove('pausa');
   overlay.classList.remove('hidden');
   if (current) draw();
 }
@@ -578,7 +580,9 @@ function endGame(title = 'GAME OVER', won = false) {
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
+  overlay.classList.toggle('pausa', paused); // muestra el menú de pause.js
   if (!paused) {
+    overlay.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
@@ -629,8 +633,10 @@ function loop(ts) {
 function init() {
   board = createBoard();
   score = 0;
-  lines = 0;
-  level = 1;
+  const startLevel = Math.min(15, Math.max(1, window.startLevel | 0 || 1)); // lo fija pause.js
+  baseLines = (startLevel - 1) * 10; // líneas "regaladas" por el nivel inicial: no cuentan para el objetivo
+  lines = baseLines;
+  level = startLevel;
   paused = false;
   gameOver = false;
   mode = MODES[modeSelect.value] || MODES.classic;
@@ -641,7 +647,7 @@ function init() {
   b2b = false;
   lastMoveWasRotation = false;
   if (fxBanner) fxBanner.classList.remove('show');
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   queue = Array.from({ length: PREVIEW_COUNT }, randomPiece);
@@ -657,12 +663,13 @@ function init() {
   updateHUD();
   updateObjective();
   overlay.classList.add('hidden');
+  overlay.classList.remove('pausa');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { if (!e.repeat) togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
