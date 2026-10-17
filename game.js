@@ -503,6 +503,7 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
+  if (window.SkinDraw && window.SkinDraw(context, x, y, colorIndex, size, alpha)) return; // skin activa (skins.js)
   const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
