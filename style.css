@@ -36,6 +36,35 @@
   --shadow: rgba(0, 0, 0, 0.15);
 }
 
+/* ---- Skins: independientes del tema claro/oscuro; sobrescriben fondos y cuadrícula ---- */
+[data-skin="neon"] {
+  --canvas-bg: #000000;
+  --grid: #14142a;
+  --border: #1a3a4a;
+  --shadow: rgba(0, 240, 255, 0.25);
+}
+
+[data-skin="pastel"] {
+  --canvas-bg: #faf0e8;
+  --grid: #eadbd0;
+  --border: #e6cfc2;
+  --shadow: rgba(230, 160, 180, 0.3);
+}
+
+[data-skin="pixel"] {
+  --canvas-bg: #20242e;
+  --grid: #2c3140;
+  --border: #4a5166;
+}
+
+[data-skin="pixel"] #board,
+[data-skin="pixel"] #hold-canvas,
+[data-skin="pixel"] #preview-canvas,
+[data-skin="pixel"] #next-canvas {
+  border-radius: 0;
+  border-width: 3px;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -145,7 +174,8 @@ body {
   letter-spacing: 1px;
 }
 
-#mode-select {
+#mode-select,
+#skin-select {
   background: var(--kbd-bg);
   color: var(--text);
   border: 1px solid var(--kbd-border);
