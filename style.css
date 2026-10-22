@@ -392,3 +392,89 @@ kbd {
 .pause-level select { background: var(--canvas-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px; }
 .pause-extra-list { list-style: none; font-size: 13px; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 .pause-extra-list[hidden] { display: none; }
+
+/* ---- Tabla de records ---- */
+.records-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.records-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.records-list li .rn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.records-list li.empty { opacity: 0.45; }
+.records-list li.mine { background: var(--accent); color: var(--accent-text); font-weight: 700; }
+
+.records-stat {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--label);
+  white-space: pre-line;
+}
+
+#records-reset {
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#records-reset:hover { border-color: var(--danger); }
+
+.records-over {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  min-width: 190px;
+}
+
+.records-over[hidden], .records-new[hidden], .records-form[hidden] { display: none; }
+
+.records-new {
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.records-form { display: flex; gap: 6px; }
+
+.records-form input {
+  width: 110px;
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.records-form button {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.records-over .records-list { width: 100%; }
